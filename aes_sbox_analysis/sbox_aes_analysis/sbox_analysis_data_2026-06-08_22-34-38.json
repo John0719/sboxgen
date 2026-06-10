@@ -1,0 +1,94 @@
+{
+  "analysis_info": {
+    "timestamp": "2026-06-08_22-34-38",
+    "sbox_name": "S-box from result/sbox_aes.txt file",
+    "sbox_size": "8x8",
+    "images_analyzed": 3,
+    "analysis_type": "Integrated S-box and Image Encryption"
+  },
+  "sbox_cryptanalysis": {
+    "bijective": true,
+    "min_nonlinearity": 112,
+    "vbf_nonlinearity": 112,
+    "differential_uniformity": 4,
+    "sac_average": 0.5048828125,
+    "algebraic_degree": 8,
+    "max_lap": 0.0625,
+    "max_autocorrelation": 32,
+    "bic_nonlinearity_min": 112,
+    "bic_nonlinearity_max": 112,
+    "bic_nonlinearity_mean": 112.0
+  },
+  "image_encryption_summary": {
+    "avg_psnr_encrypted": 7.711505690713722,
+    "avg_npcr": 100.0,
+    "avg_uaci": 34.50832204263912,
+    "avg_mse": 11073.34807060418,
+    "avg_mae": 87.99622120872976
+  },
+  "individual_image_results": [
+    {
+      "image_name": "Astronaut",
+      "mse": 10814.647686004639,
+      "mae": 87.60902786254883,
+      "psnr_encrypted": 7.790679850832175,
+      "psnr_decrypted": Infinity,
+      "psnr_occluded": 14.622888547891229,
+      "psnr_noisy": 7.265087754658851,
+      "npcr": 100.0,
+      "uaci": 34.356481514725026,
+      "correlation_original": {
+        "horizontal": 0.9840066289869724,
+        "vertical": 0.9862058782930447,
+        "diagonal": 0.9757633132646606
+      },
+      "correlation_encrypted": {
+        "horizontal": 0.10190504394535971,
+        "vertical": 0.11448020135430283,
+        "diagonal": 0.0917921471978552
+      }
+    },
+    {
+      "image_name": "Cameraman",
+      "mse": 12605.962970733643,
+      "mae": 95.15523910522461,
+      "psnr_encrypted": 7.125043337906469,
+      "psnr_decrypted": Infinity,
+      "psnr_occluded": 17.21472228895552,
+      "psnr_noisy": 7.847637963718501,
+      "npcr": 100.0,
+      "uaci": 37.31578004126455,
+      "correlation_original": {
+        "horizontal": 0.9781287188468244,
+        "vertical": 0.9852865461563458,
+        "diagonal": 0.9712161260413477
+      },
+      "correlation_encrypted": {
+        "horizontal": 0.2700905312877783,
+        "vertical": 0.26005217409354175,
+        "diagonal": 0.24410443669317855
+      }
+    },
+    {
+      "image_name": "Coins",
+      "mse": 9799.433555074258,
+      "mae": 81.22439665841584,
+      "psnr_encrypted": 8.218793883402522,
+      "psnr_decrypted": Infinity,
+      "psnr_occluded": 19.91753186740884,
+      "psnr_noisy": 8.734327693999948,
+      "npcr": 100.0,
+      "uaci": 31.85270457192778,
+      "correlation_original": {
+        "horizontal": 0.9371684604896304,
+        "vertical": 0.9405110673027508,
+        "diagonal": 0.905437322016301
+      },
+      "correlation_encrypted": {
+        "horizontal": 0.11225261320763698,
+        "vertical": 0.09031398098554412,
+        "diagonal": 0.07007290046424085
+      }
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+
+================================================================================
+                  S-BOX AND IMAGE ENCRYPTION ANALYSIS REPORT
+================================================================================
+
+Analysis Date: 2025-10-17_20-20-35
+S-box Name: DEFAULT 16x16 S-box
+S-box Size: 8x8 (256 elements)
+Test images: Astronaut, Cameraman, Coins
+
+================================================================================
+                       PART I: S-BOX CRYPTANALYSIS
+================================================================================
+
+1. BASIC S-BOX INFORMATION
+-------------------------
+S-box Name: DEFAULT 16x16 S-box
+Size: 8x8
+Number of elements: 256
+Bijective S-box: Yes
+
+2. CRYPTOGRAPHIC PROPERTIES
+------------------------------
+2.1. NONLINEARITY
+    • Minimum nonlinearity: 106
+    • Maximum nonlinearity: 108
+    • Average nonlinearity: 107.2500
+    • VBF nonlinearity: 94
+
+2.2. DIFFERENTIAL PROPERTIES
+    • Differential uniformity: 10
+
+2.3. AVALANCHE PROPERTIES (SAC)
+    • SAC average: 0.499268
+    • SAC deviation: 0.034424
+
+2.4. LINEAR PROPERTIES
+    • Maximum linear approximation probability (LAP): 0.13281250
+    • Average linear approximation probability: 0.02468791
+    • Maximum linear bias: 34
+    • Average linear bias: 6.3201
+    • Maximum autocorrelation: 64
+
+2.5. BIT INDEPENDENCE (BIC-NL)
+    • Minimum BIC-NL: 98
+    • Maximum BIC-NL: 108
+    • Average BIC-NL: 103.9286
+
+2.6. ALGEBRAIC PROPERTIES
+    • Algebraic degree: 8
+
+================================================================================
+                   PART II: IMAGE ENCRYPTION ANALYSIS
+================================================================================
+
+3. SUMMARY RESULTS
+------------------
+Average PSNR (Encryption)    : 7.31 dB
+Average NPCR                 : 99.62%
+Average UACI                 : 35.87%
+Average MSE                  : 12279
+Average MAE                  : 91.46
+Average Correlation Reduction: 0.7899
+
+4. DETAILED IMAGE ANALYSIS
+------------------------
+
+--- Astronaut Image ---
+
+Performance Metrics:
+  PSNR (Encryption): 6.34 dB
+  PSNR (Decryption): inf dB
+  MSE              : 15096
+  MAE              : 102.53
+
+Security Metrics:
+  NPCR             : 99.45%
+  UACI             : 40.21%
+
+Correlation Analysis:
+  Horizontal: 0.9840 → 0.2057
+  Vertical  : 0.9862 → 0.2190
+  Diagonal  : 0.9758 → 0.1935
+
+Attack Resistance:
+  Occlusion Attack PSNR: 11.79 dB
+  Noise Attack PSNR    : 7.37 dB
+
+--- Cameraman Image ---
+
+Performance Metrics:
+  PSNR (Encryption): 7.37 dB
+  PSNR (Decryption): inf dB
+  MSE              : 11909
+  MAE              : 90.61
+
+Security Metrics:
+  NPCR             : 99.77%
+  UACI             : 35.53%
+
+Correlation Analysis:
+  Horizontal: 0.9781 → 0.2511
+  Vertical  : 0.9853 → 0.2482
+  Diagonal  : 0.9712 → 0.2281
+
+Attack Resistance:
+  Occlusion Attack PSNR: 9.79 dB
+  Noise Attack PSNR    : 7.88 dB
+
+--- Coins Image ---
+
+Performance Metrics:
+  PSNR (Encryption): 8.20 dB
+  PSNR (Decryption): inf dB
+  MSE              : 9834
+  MAE              : 81.23
+
+Security Metrics:
+  NPCR             : 99.62%
+  UACI             : 31.86%
+
+Correlation Analysis:
+  Horizontal: 0.9372 → 0.0729
+  Vertical  : 0.9405 → 0.0585
+  Diagonal  : 0.9054 → 0.0439
+
+Attack Resistance:
+  Occlusion Attack PSNR: 11.93 dB
+  Noise Attack PSNR    : 8.48 dB
+
+================================================================================
+                            PART III: EVALUATION
+================================================================================
+
+5. S-BOX AND IMAGE ENCRYPTION COMPATIBILITY
+--------------------------------------
+
+5.1. S-BOX CRYPTOGRAPHIC QUALITY
+✓ High Nonlinearity quality
+⚠ Medium Differential resistance
+✓ Ideal SAC property
+✓ Complete Bijective property
+
+5.2. IMAGE ENCRYPTION EFFECTIVENESS
+✓ Excellent Encryption effectiveness (PSNR: 7.31 dB)
+✓ Excellent Pixel change ratio (NPCR: 99.62%)
+✓ Ideal Intensity change uniformity (UACI: 35.87%)
+✓ Good Correlation weakening
+
+6. GENERAL RECOMMENDATIONS
+-------------------
+• Differential uniformity is too high, S-box should be optimized
+
+================================================================================
+                           TECHNICAL INFORMATION
+================================================================================
+
+S-box Type           : DEFAULT 16x16 S-box
+Test Images          : Astronaut, Cameraman, Coins
+Analysis Tools       : Python, NumPy, scikit-image, matplotlib
+Cryptographic Metrics: Nonlinearity, DU, SAC, LAP, BIC-NL, Algebraic Degree
+Image Metrics        : PSNR, MSE, MAE, NPCR, UACI, Correlation Analysis
+Visualizations       : 4 PNG files created
+Attack Simulation    : Occlusion (20%) and Gaussian Noise (10%)
+
+================================================================================
+                                CONCLUSION
+================================================================================
+
+This S-box has been tested for both cryptographic properties and image encryption
+performance. For detailed visual analysis, see the generated PNG files.
+
+Analysis completed: 2025-10-17_20-20-35
+================================================================================
