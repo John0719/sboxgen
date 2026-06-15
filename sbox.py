@@ -111,8 +111,7 @@ class Generator(nn.Module):
     def forward(self, z):
         # z: (batch, z_dim)
         x = self.net(z)              # (batch, 256), real-valued
-        # x = torch.sigmoid(x) * 255.0 # map to [0,255]
-        x = torch.softmax(x, dim=1) * 255
+        x = torch.sigmoid(x) * 255.0 # map to [0,255]
         return x                     # you’ll round/clamp in the crypto losses
 
 class Discriminator(nn.Module):
@@ -191,15 +190,14 @@ def differential_uniformity(sbox):
     return du
 
 def differential_uniformity_loss(fake_sbox, real_sbox):
-    # Sanitize values
     fake = torch.clamp(torch.round(fake_sbox), 0, 255).to(torch.int64)
     real = torch.clamp(torch.round(real_sbox), 0, 255).to(torch.int64)
 
-    # Compute DU vectors
-    du_fake = differential_uniformity(fake)  # (batch,255)
-    du_real = differential_uniformity(real)  # (batch,255)
+    # Compute DU vectors (batch, 255) for differences a=1..255
+    du_fake = differential_uniformity(fake)  # (batch, 255)
+    du_real = differential_uniformity(real)  # (batch, 255)
 
-    # L2 distance per sample
+    # L2 distance per sample, summed over all difference values
     loss = ((du_fake - du_real) ** 2).sum(dim=1)
 
     # Expectation over batch
@@ -215,7 +213,7 @@ def hadamard_256(device):
 def nonlinearity(sbox):
     """
     sbox: (batch, 256) int64
-    returns: (batch, 256) NF vector
+    returns: (batch, 8) NF vector (nonlinearity per output bit)
     """
     device = sbox.device
     batch = sbox.shape[0]
@@ -224,28 +222,28 @@ def nonlinearity(sbox):
     bits = ((sbox.unsqueeze(-1) >> torch.arange(8, device=device)) & 1).float()
 
     # Walsh-Hadamard transform matrix (256x256)
-    H = hadamard_256(device)  # You must define this once globally
+    H = hadamard_256(device)
 
     # Compute Walsh spectrum for each output bit
-    # bits: (batch, 256, 8)
-    # H:    (256, 256)
+    # bits.transpose(1,2): (batch, 8, 256)
+    # H: (256, 256)
     W = torch.matmul(bits.transpose(1, 2), H)  # (batch, 8, 256)
 
-    # Nonlinearity feature = max absolute Walsh coefficient per bit
-    NF = W.abs().max(dim=1).values  # (batch, 256)
+    # Nonlinearity per bit = max absolute Walsh coefficient over all input combinations
+    # Taking max over the coefficient dimension (dim=2)
+    NF = W.abs().max(dim=2).values  # (batch, 8)
 
     return NF
 
 def nonlinearity_loss(fake_sbox, real_sbox):
-    # Sanitize values
     fake = torch.clamp(torch.round(fake_sbox), 0, 255).to(torch.int64)
     real = torch.clamp(torch.round(real_sbox), 0, 255).to(torch.int64)
 
-    # Compute NF vectors
-    nf_fake = nonlinearity(fake)  # (batch,256)
-    nf_real = nonlinearity(real)  # (batch,256)
+    # Compute NF vectors (batch, 8) per output bit
+    nf_fake = nonlinearity(fake)  # (batch, 8)
+    nf_real = nonlinearity(real)  # (batch, 8)
 
-    # L2 distance per sample
+    # L2 distance per sample, summed over all 8 output bits
     loss = ((nf_fake - nf_real) ** 2).sum(dim=1)
 
     # Expectation over batch
@@ -260,8 +258,8 @@ def differential_uniformity_loss_norm(fake_sbox, real_sbox):
     return du / 16192512.0
 
 def nonlinearity_loss_norm(fake_sbox, real_sbox):
-    nl = nonlinearity_loss(fake_sbox, real_sbox)  # your optimized version
-    return nl / 16777216.0
+    nl = nonlinearity_loss(fake_sbox, real_sbox)
+    return nl / 524288.0
 
 def critic_loss(critic, real_sbox, fake_sbox, gp_lambda=10.0):
     # WGAN part
@@ -292,16 +290,25 @@ def ste_round(x):
     return (x.round() - x).detach() + x
 
 def generator_loss(critic, fake_sbox, real_sbox,
-                   w_du=0.05, w_nf=0.05, w_bij=0.1):
+                   w_du=0.25, w_nf=0.05, w_bij=0.15):
     round_fake = fake_sbox # ste_round(fake_sbox)
     round_real = real_sbox # ste_round(real_sbox)
+
+    fake_int = torch.clamp(torch.round(fake_sbox), 0, 255).to(torch.int64)
+    du_fake_vec = differential_uniformity(fake_int)  # (batch, 255)
+
+    # Hard constraint: penalize any DU > 4
+    du_max = du_fake_vec.max(dim=1).values.float()  # (batch,)
+    du_violation = torch.clamp(du_max - 4, min=0)  # 0 if DU≤4, else penalty
+    du_constraint_loss = (du_violation ** 2).mean() * 10.0
+
     w_adv = 1.0 - w_bij - w_nf - w_du
     adv = -critic(fake_sbox).mean()         # WGAN generator term
     du  = differential_uniformity_loss(round_fake, round_real)      # your DU loss
     nf  = nonlinearity_loss(round_fake, round_real)      # your NF loss
     bij = bijection_loss(round_fake)          # your bijection loss
 
-    return w_adv * adv + w_du * du + w_nf * nf + w_bij * bij
+    return w_adv * adv + w_du * du + w_nf * nf + w_bij * bij + du_constraint_loss
 
 # ---------------------------------------------------------
 # 5. Gradient penalty
@@ -407,19 +414,19 @@ def train(resume=True, progress_callback=None):
 
         # Monitor raw metrics for plotting and diagnostics
         # compute metrics and detach tensors before converting to Python floats
-        du_res = differential_uniformity_loss(fake, real).mean()
+        du_res = differential_uniformity_loss(fake, real)
         if isinstance(du_res, torch.Tensor):
             du_value = float(du_res.detach().cpu().item())
         else:
             du_value = float(du_res)
 
-        nl_res = nonlinearity_loss(fake, real).mean()
+        nl_res = nonlinearity_loss(fake, real)
         if isinstance(nl_res, torch.Tensor):
             nl_value = float(nl_res.detach().cpu().item())
         else:
             nl_value = float(nl_res)
 
-        bij_value = float(bijection_loss(fake).mean())
+        bij_value = float(bijection_loss(fake))
 
         fake_int = torch.clamp(torch.round(fake), 0, 255).to(torch.int64)
         du_fake_vec = differential_uniformity(fake_int[:1])
