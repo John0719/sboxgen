@@ -4,6 +4,7 @@ import sys
 
 from sbox import train, generate_sbox, export_onnx, analyze_sbox, clean_result_dir, clean_model_dir
 from plot_training import main as plot_training_main
+from dcgan import train_dcgan, generate_sbox as generate_dcgan_sbox
 
 
 def main():
@@ -12,8 +13,9 @@ def main():
     parser.add_argument('target', nargs='?', help='For analyze mode: path to S-box file')
     parser.add_argument('-m', '--mode', dest='mode', help='mode: t (train), g (generate), o (export), a (analyze)')
     parser.add_argument('-f', '--file', dest='file', help='S-box file to analyze when mode is a')
+    parser.add_argument('--model', dest='model', choices=['wgan', 'dcgan'], default='wgan', help='Choose the model type for training or generation')
     parser.add_argument('--fresh', action='store_true', help='Start training from beginning (ignore checkpoint)')
-    parser.add_argument('--plot', action='store_true', help='Enable live plot updates during training')
+    parser.add_argument('--plot', action='store_true', help='Enable live plot updates during training (WGAN only currently)')
     parser.add_argument('-cr', '--clean-results', action='store_true', help='Remove all files and subdirectories inside the result directory')
     parser.add_argument('-cm', '--clean-models', action='store_true', help='Remove all files and subdirectories inside the model directory')
     args = parser.parse_args()
@@ -35,12 +37,17 @@ def main():
 
     if choice == "t":
         resume = not args.fresh
-        if args.plot:
+        if args.model == "dcgan":
+            train_dcgan()
+        elif args.plot:
             plot_training_main(resume=resume)
         else:
             train(resume=resume)
     elif choice == "g":
-        generate_sbox()
+        if args.model == "dcgan":
+            generate_dcgan_sbox()
+        else:
+            generate_sbox()
     elif choice == "o":
         export_onnx()
     elif choice == "a":
