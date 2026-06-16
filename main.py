@@ -15,7 +15,7 @@ def main():
     parser.add_argument('-f', '--file', dest='file', help='S-box file to analyze when mode is a')
     parser.add_argument('--model', dest='model', choices=['wgan', 'dcgan'], default='wgan', help='Choose the model type for training or generation')
     parser.add_argument('--fresh', action='store_true', help='Start training from beginning (ignore checkpoint)')
-    parser.add_argument('--plot', action='store_true', help='Enable live plot updates during training (WGAN only currently)')
+    parser.add_argument('--plot', action='store_true', help='Enable live plot updates during training')
     parser.add_argument('-cr', '--clean-results', action='store_true', help='Remove all files and subdirectories inside the result directory')
     parser.add_argument('-cm', '--clean-models', action='store_true', help='Remove all files and subdirectories inside the model directory')
     args = parser.parse_args()
@@ -37,12 +37,13 @@ def main():
 
     if choice == "t":
         resume = not args.fresh
-        if args.model == "dcgan":
-            train_dcgan()
-        elif args.plot:
-            plot_training_main(resume=resume)
+        if args.plot:
+            plot_training_main(model=args.model, resume=resume)
         else:
-            train(resume=resume)
+            if args.model == "dcgan":
+                train_dcgan()
+            else:
+                train(resume=resume)
     elif choice == "g":
         if args.model == "dcgan":
             generate_dcgan_sbox()

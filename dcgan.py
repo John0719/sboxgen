@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
+from sbox_loss import differential_uniformity_loss, nonlinearity_loss, bijection_loss
 import prepare_db
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -140,6 +141,7 @@ def train_dcgan(
     beta1=0.5,
     dataset_path=None,
     save_interval=10,
+    progress_callback=None,
     device=DEVICE,
 ):
     dataset_path = dataset_path or os.path.join("db", "sbox_dataset.pt")
@@ -214,6 +216,24 @@ def train_dcgan(
 
         elapsed = time.time() - start_time
         print(f"Epoch {epoch}/{epochs} — lossD: {lossD.item():.4f}, lossG: {lossG.item():.4f}, time: {elapsed:.1f}s")
+
+        if progress_callback is not None:
+            du_value = None
+            nl_value = None
+            bij_value = None
+            try:
+                fake_int = torch.clamp(torch.round((gen + 1.0) / 2.0 * 255.0), 0, 255).to(torch.int64)
+                real_int = torch.clamp(torch.round((real + 1.0) / 2.0 * 255.0), 0, 255).to(torch.int64)
+                fake_flat = fake_int.view(fake_int.size(0), -1)
+                real_flat = real_int.view(real_int.size(0), -1)
+                du_value = float(differential_uniformity_loss(fake_flat, real_flat).item())
+                nl_value = float(nonlinearity_loss(fake_flat, real_flat).item())
+                bij_value = float(bijection_loss(fake_flat).item())
+            except Exception:
+                du_value = None
+                nl_value = None
+                bij_value = None
+            progress_callback(epoch, lossG.item(), lossD.item(), du_value, nl_value, bij_value)
 
         if epoch % save_interval == 0 or epoch == epochs:
             t = datetime.now().strftime("%Y%m%d_%H%M%S")
