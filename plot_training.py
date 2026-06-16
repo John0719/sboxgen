@@ -9,7 +9,7 @@ except ImportError:
 from sbox import train
 
 
-def main():
+def main(resume=True):
     epochs = []
     g_losses = []
     d_losses = []
@@ -66,7 +66,7 @@ def main():
         fig.canvas.flush_events()
 
     print("Starting training with live matplotlib plotting...")
-    train(resume=False, progress_callback=progress_callback)
+    train(resume=resume, progress_callback=progress_callback)
 
     plt.ioff()
     print("Training complete. Close the plot window to exit.")
