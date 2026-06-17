@@ -12,8 +12,10 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import grad
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import prepare_db
@@ -53,40 +55,123 @@ def timestamp():
 # 3. Generator and Discriminator (WGAN-GP)
 # ---------------------------------------------------------
 class Generator(nn.Module):
-    def __init__(self, z_dim=128, hidden_dim=512):
+    def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(z_dim, hidden_dim),
-            nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LeakyReLU(0.2, inplace=True),
+        # 1) Fully connected layer: 256 → 512×4×4
+        self.fc = nn.Linear(256, 512 * 4 * 4)
+        self.bn1 = nn.BatchNorm2d(512)
 
-            nn.Linear(hidden_dim, 256),
+        # 2) First conv layer: 512 → 256
+        self.conv1 = nn.Conv2d(
+            in_channels=512,
+            out_channels=256,
+            kernel_size=5,
+            stride=1,
+            padding=2
         )
+        self.bn2 = nn.BatchNorm2d(256)
 
+        # 3) Second conv layer: 256 → 1
+        self.conv2 = nn.Conv2d(
+            in_channels=256,
+            out_channels=1,
+            kernel_size=5,
+            stride=1,
+            padding=2
+        )
+        
     def forward(self, z):
-        # z: (batch, z_dim)
-        x = self.net(z)              # (batch, 256), real-valued
-        x = torch.sigmoid(x) * 255.0 # map to [0,255]
-        return x                     # you’ll round/clamp in the crypto losses
+        # z: (batch, 256)
+
+        # Fully connected → reshape to (batch, 512, 4, 4)
+        x = self.fc(z)
+        x = x.view(-1, 512, 4, 4)
+
+        # Batch normalization + LeakyReLU
+        x = self.bn1(x)
+        x = F.leaky_relu(x, 0.2)
+
+        # Upsample to 8×8
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+
+        # Conv1: 512→256, kernel 5×5, stride 1, padding 2 → output 8×8
+        x = self.conv1(x)
+        x = self.bn2(x)
+        x = F.leaky_relu(x, 0.2)
+
+        # Upsample to 8×8 again
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+
+        # Conv2: 256→1, kernel 5×5, stride 1, padding 2 → output 16×16
+        x = self.conv2(x)
+
+        # Final output: reshape to (batch, 1, 16, 16)
+        # Because conv2 output is (batch, 1, 4, 4)
+        # but we upsampled twice → final size is already 16×16
+        return x
 
 class Discriminator(nn.Module):
-    def __init__(self, hidden_dim=512):
+    def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(256, hidden_dim),
-            nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Linear(hidden_dim, 1),
+        # Conv1: 1 → 128
+        self.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=128,
+            kernel_size=5,
+            stride=1,
+            padding=0
         )
 
-    def forward(self, sbox):
-        # sbox: (batch, 256), real or fake
-        return self.net(sbox).view(-1)  # (batch,)
+        # Conv2: 128 → 256 (with BatchNorm)
+        self.conv2 = nn.Conv2d(
+            in_channels=128,
+            out_channels=256,
+            kernel_size=5,
+            stride=1,
+            padding=0
+        )
+        self.bn2 = nn.BatchNorm2d(256)
+
+        # Conv3: 256 → 512 (with BatchNorm)
+        self.conv3 = nn.Conv2d(
+            in_channels=256,
+            out_channels=512,
+            kernel_size=5,
+            stride=1,
+            padding=0
+        )
+        self.bn3 = nn.BatchNorm2d(512)
+
+        # After 3 conv layers, compute final spatial size:
+        # Input: 16x16
+        # Conv1: 16 - 5 + 1 = 12
+        # Conv2: 12 - 5 + 1 = 8
+        # Conv3: 8 - 5 + 1 = 4
+        # Final feature map: (512, 4, 4) = 512*16 = 8192
+
+        self.fc = nn.Linear(512 * 4 * 4, 1)  # WGAN: output is a scalar
+
+    def forward(self, x):
+        # x: (batch, 1, 16, 16)
+
+        x = self.conv1(x)
+        x = F.leaky_relu(x, 0.2)
+
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = F.leaky_relu(x, 0.2)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = F.leaky_relu(x, 0.2)
+
+        x = x.view(x.size(0), -1)  # flatten
+
+        out = self.fc(x)  # no sigmoid for WGAN
+
+        return out
 
 G = Generator().to(device)
 D = Discriminator().to(device)
@@ -100,20 +185,42 @@ from sbox_loss import *
 # ---------------------------------------------------------
 # 5. Gradient penalty
 # ---------------------------------------------------------
-def gradient_penalty(real, fake):
+# def gradient_penalty(real, fake):
+#     batch_size = real.size(0)
+#     alpha = torch.rand(batch_size, 1, device=device)
+#     interpolates = alpha * real + (1 - alpha) * fake
+#     interpolates.requires_grad_(True)
+#     d_interpolates = D(interpolates)
+#     gradients = grad(
+#         outputs=d_interpolates,
+#         inputs=interpolates,
+#         grad_outputs=torch.ones_like(d_interpolates),
+#         create_graph=True,
+#         retain_graph=True
+#     )[0]
+#     return ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+
+def gradient_penalty(critic, real, fake, device, lambda_gp=10.0):
     batch_size = real.size(0)
-    alpha = torch.rand(batch_size, 1, device=device)
-    interpolates = alpha * real + (1 - alpha) * fake
-    interpolates.requires_grad_(True)
-    d_interpolates = D(interpolates)
-    gradients = grad(
-        outputs=d_interpolates,
-        inputs=interpolates,
-        grad_outputs=torch.ones_like(d_interpolates),
+    epsilon = torch.rand(batch_size, 1, 1, 1, device=device)
+    interpolated = epsilon * real + (1 - epsilon) * fake
+    interpolated.requires_grad_(True)
+
+    critic_interpolated = critic(interpolated)
+
+    grads = torch.autograd.grad(
+        outputs=critic_interpolated,
+        inputs=interpolated,
+        grad_outputs=torch.ones_like(critic_interpolated),
         create_graph=True,
-        retain_graph=True
+        retain_graph=True,
+        only_inputs=True
     )[0]
-    return ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+
+    grads = grads.view(batch_size, -1)
+    grad_norm = grads.norm(2, dim=1)
+    gp = lambda_gp * ((grad_norm - 1) ** 2).mean()
+    return gp
 
 # ---------------------------------------------------------
 # 6. Checkpoint helpers
@@ -140,9 +247,12 @@ def load_checkpoint(path):
 # ---------------------------------------------------------
 # 7. Training Loop
 # ---------------------------------------------------------
+Z_DIM = 256
 LR = 1e-4
-EPOCHS = 200
-BATCH_SIZE = 32
+EPOCHS = 50
+BATCH_SIZE = 64
+CRITIC_ITERS = 5
+LAMDA_GP = 10.0
 CHECKPOINT_INTERVAL = EPOCHS // 10
 MODEL_DIR = "model"
 RESULT_DIR = "result"
@@ -169,6 +279,7 @@ def train(resume=True, progress_callback=None):
 
     # Prepare dataset
     dataset = get_dataset(DB_PATH, num_samples=2000, device=device)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
 
     # Check the DU of databset code snippet
     du_real = differential_uniformity(dataset[0:1].to(torch.int64))
@@ -178,27 +289,41 @@ def train(resume=True, progress_callback=None):
     for epoch in pbar:
         idx = torch.randint(0, dataset.size(0), (BATCH_SIZE,), device=device)
         real = dataset[idx]
+        real = real.view(real.size(0), 1, 16, 16)
 
-        # Train Discriminator
-        z = torch.randn(BATCH_SIZE, 128, device=device)
-        fake = G(z).detach()
-        # loss_D = -(D(real).mean() - D(fake).mean()) + 10 * gradient_penalty(real, fake)
-        loss_D = critic_loss(D, real, fake)
+        # ======================
+        #  Train Critic
+        # ======================
+        for _ in range(CRITIC_ITERS):
+            z = torch.randn(BATCH_SIZE, Z_DIM, device=device)
+            fake = G(z).detach()
 
-        opt_D.zero_grad()
-        loss_D.backward()
-        opt_D.step()
+            D_real = D(real)
+            D_fake = D(fake)
 
-        # Train Generator
-        z = torch.randn(BATCH_SIZE, 128, device=device)
+            gp = gradient_penalty(D, real, fake, device, lambda_gp=LAMDA_GP)
+
+            loss_D = D_fake.mean() - D_real.mean() + gp
+            # loss_D = critic_loss(D, real, fake)
+
+            opt_D.zero_grad()
+            loss_D.backward()
+            opt_D.step()
+
+        # ======================
+        #  Train Generator
+        # ======================
+        z = torch.randn(BATCH_SIZE, Z_DIM, device=device)
         fake = G(z)
-
-        loss_G = generator_loss(D, fake, real, w_du=0.05, w_nf=0.05, w_bij=0.1)
-
+        D_fake = D(fake)
+        loss_G = -D_fake.mean()
+        # loss_G = generator_loss(D, fake, real, w_du=0.05, w_nf=0.05, w_bij=0.1)
         opt_G.zero_grad()
         loss_G.backward()
         opt_G.step()
 
+        real = real.view(real.size(0), -1)
+        fake = fake.view(fake.size(0), -1)        
         # Monitor raw metrics for plotting and diagnostics
         # compute metrics and detach tensors before converting to Python floats
         du_res = differential_uniformity_loss(fake, real)
@@ -320,7 +445,7 @@ def generate_sbox():
     G.load_state_dict(torch.load(generator_path, map_location=device))
     G.eval()
 
-    z = torch.randn(1, 128, device=device)
+    z = torch.randn(1, Z_DIM, device=device)
     generated_sbox = G(z).detach().cpu().numpy().flatten()
     # Round and clamp to valid S-box range
     generated_sbox = np.clip(np.round(generated_sbox), 0, 255).astype(int)
