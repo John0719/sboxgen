@@ -5,7 +5,7 @@ import sys
 from sbox import train, generate_sbox, export_onnx, analyze_sbox, clean_result_dir, clean_model_dir
 from plot_training import main as plot_training_main
 from dcgan import train_dcgan, generate_sbox as generate_dcgan_sbox
-from wgan_im import train_wgan_im
+from wgan_im import train_wgan_im, wganim_gen_sbox
 
 
 def main():
@@ -50,6 +50,8 @@ def main():
     elif choice == "g":
         if args.model == "dcgan":
             generate_dcgan_sbox()
+        elif args.model == "wgan_im":
+            wganim_gen_sbox()
         else:
             generate_sbox()
     elif choice == "o":

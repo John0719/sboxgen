@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-from time import time
+import time
 
 from sbox import CRITIC_ITERS, LATEST_CKPT, LR, get_dataset, load_checkpoint
 from sbox_loss import differential_uniformity
@@ -227,6 +227,37 @@ def f_S(gen_out):
     sboxes = flat.argsort(dim=1)
 
     return sboxes
+
+RESULT_DIR = "result"
+def wganim_gen_sbox():
+    """
+    Generate a single S-box using the trained WGAN-IM generator.
+    Returns a tensor of shape (256,) containing a permutation of 0..255.
+    """
+    generator_path = os.path.join(MODEL_DIR, "generator_final.pth")
+    if not os.path.exists(generator_path):
+        print(f"No saved {generator_path} found. Train first.")
+        return
+
+    G.load_state_dict(torch.load(generator_path, map_location=DEVICE))
+    G.eval()
+
+    z = torch.randn(1, 256, device=DEVICE)
+    gen = G(z)
+    generated_sbox = f_S(gen)
+
+    # Create timestamp in format YYYYMMDDHHMMSS
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    
+    fname = os.path.join(RESULT_DIR, f"sbox_{ts}.txt")
+    with open(fname, "w") as f:
+        f.write(", ".join(str(v) for v in generated_sbox))
+        # f.write("Generated S-box (16x16 hex matrix):\n")
+        # matrix = [generated_sbox[i*16:(i+1)*16] for i in range(16)]
+        # for row in matrix:
+        #     f.write(" ".join(f"{val:02X}" for val in row) + "\n")
+
+    print(f"S-box generated and saved to {fname}")
 
 # --- Deduplication feature function ---
 def f_b(sbox):
@@ -497,7 +528,7 @@ def train_wgan_im(
             bij_value = float(bij_loss.item())
             progress_callback(epoch, loss_G.item(), loss_D.item(), du_value, nl_value, bij_value)
 
-        if epoch % save_interval == 0 or epoch == epochs:
+        if epoch % (epochs // 10) == 0 or epoch == epochs:
             t = datetime.now().strftime("%Y%m%d_%H%M%S")
             torch.save(G.state_dict(), os.path.join(MODEL_DIR, f"wgan_G_{t}_ep{epoch}.pth"))
             torch.save(D.state_dict(), os.path.join(MODEL_DIR, f"wgan_D_{t}_ep{epoch}.pth"))
