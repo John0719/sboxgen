@@ -9,9 +9,10 @@ except ImportError:
 
 from sbox import train as train_wgan
 from dcgan import train_dcgan
+from wgan_im import train_wgan_im
 
 
-def main(model="wgan", resume=True, dataset_path=None, epochs_num=50, batch_size=64, learning_rate=2e-4, beta1=0.5):
+def main(model="wgan", resume=True, dataset_path=None, epochs_num=2000, batch_size=64, learning_rate=2e-4, beta1=0.5):
     epochs = []
     g_losses = []
     d_losses = []
@@ -76,6 +77,15 @@ def main(model="wgan", resume=True, dataset_path=None, epochs_num=50, batch_size
             lr=learning_rate,
             beta1=beta1,
             dataset_path=dataset_path,
+            progress_callback=progress_callback,
+        )
+    elif model == "wgan_im":
+        train_wgan_im(
+            z_dim=256,
+            epochs=epochs_num,
+            batch_size=batch_size,
+            dataset_path=dataset_path,
+            resume=resume,
             progress_callback=progress_callback,
         )
     else:

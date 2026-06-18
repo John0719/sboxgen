@@ -5,6 +5,7 @@ import sys
 from sbox import train, generate_sbox, export_onnx, analyze_sbox, clean_result_dir, clean_model_dir
 from plot_training import main as plot_training_main
 from dcgan import train_dcgan, generate_sbox as generate_dcgan_sbox
+from wgan_im import train_wgan_im
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
     parser.add_argument('target', nargs='?', help='For analyze mode: path to S-box file')
     parser.add_argument('-m', '--mode', dest='mode', help='mode: t (train), g (generate), o (export), a (analyze)')
     parser.add_argument('-f', '--file', dest='file', help='S-box file to analyze when mode is a')
-    parser.add_argument('--model', dest='model', choices=['wgan', 'dcgan'], default='wgan', help='Choose the model type for training or generation')
+    parser.add_argument('--model', dest='model', choices=['wgan', 'dcgan', 'wgan_im'], default='wgan', help='Choose the model type for training or generation')
     parser.add_argument('--fresh', action='store_true', help='Start training from beginning (ignore checkpoint)')
     parser.add_argument('--plot', action='store_true', help='Enable live plot updates during training')
     parser.add_argument('-cr', '--clean-results', action='store_true', help='Remove all files and subdirectories inside the result directory')
@@ -42,6 +43,8 @@ def main():
         else:
             if args.model == "dcgan":
                 train_dcgan()
+            elif args.model == "wgan_im":
+                train_wgan_im(resume=resume)
             else:
                 train(resume=resume)
     elif choice == "g":

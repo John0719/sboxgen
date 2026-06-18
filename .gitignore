@@ -1,3 +1,5 @@
 model/
 result/
 db/
+__pycache__/
+etsi_pdfs/

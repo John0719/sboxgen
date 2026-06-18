@@ -323,7 +323,7 @@ def train(resume=True, progress_callback=None):
         opt_G.step()
 
         real = real.view(real.size(0), -1)
-        fake = fake.view(fake.size(0), -1)        
+        fake = fake.view(fake.size(0), -1)
         # Monitor raw metrics for plotting and diagnostics
         # compute metrics and detach tensors before converting to Python floats
         du_res = differential_uniformity_loss(fake, real)
